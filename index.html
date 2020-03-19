@@ -1,3 +1,202 @@
-<iframe border=0 frameborder=0 height=200 width=500 
- src="https://twitframe.com/show?url=https://twitter.com/tedlieu/status/1235618158976749569">
-</iframe>
+<html>
+  <head>
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"></script>
+  </head>
+  <body>
+    <script language="javascript">
+      const n = 12; // Number of items shown
+      const duration = 5000; // Time between updates
+      const delay = 1000; // Time for animation
+
+      function bars(svg) {
+        let bar = svg
+          .append("g")
+          .attr("fill", "#999")
+          .attr("fill-opacity", 0.6)
+          .selectAll("rect");
+
+        return (data, transition) =>
+          (bar = bar
+            .data(data.slice(0, n), ([name]) => name)
+            .join(
+              enter =>
+                enter
+                  .append("rect")
+                  .attr("height", y.bandwidth())
+                  .attr("x", x(0))
+                  .attr("y", y(n))
+                  .attr("fill", ([, , value]) => color(value))
+                  .attr("width", ([, value]) => x(value) - x(0)),
+              update => update,
+              exit =>
+                exit
+                  .transition(transition)
+                  .remove()
+                  .attr("y", y(n))
+            )
+            .call(bar =>
+              bar
+                .transition(transition)
+                .attr("y", (d, i) => y(i))
+                .attr("width", ([, value]) => x(value) - x(0))
+            ));
+      }
+
+      function labels(svg) {
+        let label = svg
+          .append("g")
+          .attr("font-weight", "bold")
+          .attr("font-size", barSize * 0.6)
+          .attr(
+            "font-family",
+            "sans-serif, apple color emoji, segoe ui emoji, segoe ui symbol, noto color emoji"
+          )
+          .attr("text-anchor", "start")
+          .selectAll("text");
+
+        return (data, transition) =>
+          (label = label
+            .data(data.slice(0, n), ([name]) => name)
+            .join(
+              enter =>
+                enter
+                  .append("text")
+                  .attr(
+                    "transform",
+                    ([, value]) => `translate(${x(value)},${y(n)})`
+                  )
+                  .attr("y", y.bandwidth() / 2)
+                  .attr("x", -6)
+                  .call(text =>
+                    text
+                      .append("tspan")
+                      .attr("dx", "0.15em")
+                      .attr("dy", "0.31em")
+                      .text(([name]) => name)
+                  )
+                  .call(text =>
+                    text
+                      .append("tspan")
+                      .attr("class", "number")
+                      .attr("fill-opacity", 0.7)
+                      // .attr("font-size", 10)
+                      .attr("font-weight", "normal")
+                      // .attr("dy", "0.32em")
+                      .attr("dx", "1em")
+                      .text(([, value]) => formatNumber(value))
+                  ),
+              update => update,
+              exit =>
+                exit
+                  .transition(transition)
+                  .remove()
+                  .attr(
+                    "transform",
+                    ([, value]) => `translate(${x(value)},${y(n)})`
+                  )
+            )
+            .call(bar =>
+              bar
+                .transition(transition)
+                .attr("transform", ([, value], i) => `translate(${20},${y(i)})`)
+                .call(g =>
+                  g.select("tspan.number").tween("text", function([, value]) {
+                    return textTween(
+                      +this.textContent.replace(/,/g, ""),
+                      value
+                    );
+                  })
+                )
+            ));
+      }
+
+      function axis(svg) {
+        const g = svg
+          .append("g")
+          .attr("transform", `translate(0,${margin.top})`);
+
+        const axis = d3
+          .axisTop(x)
+          .ticks(width / 160)
+          .tickSizeOuter(0)
+          .tickSizeInner(-barSize * (n + y.padding()));
+
+        return (_, transition) => {
+          g.transition(transition).call(axis);
+          g.select(".tick:first-of-type text").remove();
+          g.selectAll(".tick:not(:first-of-type) line").attr("stroke", "white");
+          g.select(".domain").remove();
+        };
+      }
+
+      function textTween(a, b) {
+        const i = d3.interpolateNumber(a, b);
+        return function(t) {
+          this.textContent = formatNumber(i(t));
+        };
+      }
+
+      const formatNumber = d3.format(",d");
+
+      const barSize = 48;
+      const margin = { top: 16, right: 6, bottom: 6, left: 0 };
+      const height = margin.top + barSize * n + margin.bottom;
+      const width = 1000;
+
+      const x = d3.scaleLinear([0, 1], [margin.left, width - margin.right]);
+      const y = d3
+        .scaleBand()
+        .domain(d3.range(n + 1))
+        .rangeRound([margin.top, margin.top + barSize * (n + 1 + 0.1)])
+        .padding(0.1);
+      const color = d3
+        .scaleLinear()
+        .domain([-1, 1])
+        .range(["red", "steelblue"]);
+
+      const svg = d3
+        .select("body")
+        .append("svg")
+        .attr("viewBox", [0, 0, width, height]);
+
+      const colorLegend = d3
+        .legendColor()
+        .cells(10)
+        .scale(color);
+
+      svg
+        .append("g")
+        .attr("transform", `translate(${width - 120}, ${height - 300})`)
+        .call(colorLegend);
+
+      const updateBars = bars(svg);
+      const updateAxis = axis(svg);
+      const updateLabels = labels(svg);
+
+      function update(data) {
+        const transition = svg
+          .transition()
+          .duration(delay)
+          .ease(d3.easeLinear);
+
+        // x.domain([0, data[data.length - 1][1]]);
+        x.domain([0, data[0][1]]);
+
+        updateAxis(data, transition);
+        updateBars(data, transition);
+        updateLabels(data, transition);
+      }
+
+      function updateData() {
+        d3.json(
+          "https://twitterbucket101.s3.us-east-2.amazonaws.com/chart_data/last10.json"
+        ).then(x => {
+          update(x);
+          setTimeout(updateData, duration);
+        });
+      }
+      updateData();
+    </script>
+  </body>
+</html>
