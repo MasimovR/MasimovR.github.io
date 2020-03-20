@@ -209,7 +209,7 @@ body { font: normal 10px jetbrains, Arial, sans-serif;}
           "https://twitterbucket101.s3.us-east-2.amazonaws.com/chart_data/last24.json"
         ).then(x => {
           x = x.map(y => {
-            y[1] *= 0.999 + Math.random() * 0.002;
+            y[1] *= 0.9999 + Math.random() * 0.0002;
             return y;
           });
           update(x);
